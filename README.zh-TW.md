@@ -66,7 +66,7 @@ PixelPortfolio/
 ## 📄 License / 授權說明
 
 本專案為個人作品集。
-美術素材源自 ClawLibrary，依其原始授權條款使用。
+美術素材源自 [ClawLibrary](https://github.com/shengyu-meng/ClawLibrary)，依其原始授權條款使用。
 
 ---
 
