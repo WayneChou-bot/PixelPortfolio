@@ -60,6 +60,7 @@ PixelPortfolio/
         ├── idea-spritesheet.png
         ├── coffee-spritesheet.png
         └── rest-spritesheet.png
+```
 ---
 
 ## 📄 License / 授權
