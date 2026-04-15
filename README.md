@@ -6,7 +6,7 @@
 > **以 Phaser 3 打造的 2D 像素風互動式履歷。**
 > 操控水豚角色在虛擬圖書館中漫步，探索我的職涯經歷。
 
-<!-- 🔗 Live Demo: https://your-domain.vercel.app -->
+🔗 Live Demo: [https://your-domain.vercel.app](https://waynepixelportfolio.vercel.app/)
 <!-- 部署完成後請取消上方註解並填入網址 -->
 
 ---
