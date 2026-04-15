@@ -1,0 +1,1252 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wayne's Archive — Pixel Portfolio</title>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+  :root {
+    --stage-left-gutter: 64px;
+    --stage-right-gutter: 194px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:100%; height:100%; overflow:hidden; font-family:'VT323','Courier New',monospace; color:#ecf7f3;
+    background: #091110;
+  }
+  body {
+    background:
+      linear-gradient(180deg, #16191d 0%, #12171b 24%, #0e1418 52%, #0a1115 78%, #080d11 100%),
+      linear-gradient(135deg, rgba(72,95,108,0.12) 0%, rgba(72,95,108,0.04) 36%, rgba(46,84,74,0.06) 72%, rgba(0,0,0,0) 100%);
+  }
+  #game-container {
+    position:fixed;
+    inset: 0 var(--stage-right-gutter) 0 var(--stage-left-gutter);
+    width: auto; height: auto;
+    z-index:1;
+    background: transparent;
+    transition: inset 300ms ease;
+  }
+  #game-container canvas { background: transparent !important; }
+
+  /* === START SCREEN === */
+  #startScreen {
+    position:fixed; inset:0; z-index:200;
+    background:linear-gradient(180deg, #0d1716 0%, #163532 50%, #0d1716 100%);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+  }
+  #startScreen.hidden { display:none; }
+  .start-title {
+    font-family:'VT323',monospace; font-size:42px; color:#ff7f50;
+    text-shadow:0 0 30px rgba(255,127,80,0.4); margin-bottom:8px;
+    text-align:center; line-height:1.4; letter-spacing:2px;
+  }
+  .start-sub { font-size:22px; color:rgba(152,181,172,0.9); margin-bottom:32px; text-align:center; }
+  .start-capybara { font-size:64px; margin-bottom:20px; }
+  .start-btn {
+    font-family:'VT323',monospace; font-size:18px; letter-spacing:2px;
+    background:transparent; color:#ff7f50; border:2px solid #ff7f50;
+    padding:14px 36px; cursor:pointer;
+    box-shadow:0 0 20px rgba(255,127,80,0.15);
+    animation:glow 2.5s infinite; transition:all 0.2s; border-radius:6px;
+  }
+  @keyframes glow { 0%,100%{box-shadow:0 0 20px rgba(255,127,80,0.15)} 50%{box-shadow:0 0 35px rgba(255,127,80,0.35)} }
+  .start-btn:hover { background:#ff7f50; color:#0d1716; }
+  .start-hints { margin-top:24px; font-size:17px; color:rgba(152,181,172,0.6); text-align:center; line-height:1.8; }
+  .loading-bar { width:280px; height:3px; background:#163532; margin-bottom:20px; overflow:hidden; border-radius:2px; }
+  .loading-fill { width:0; height:100%; background:linear-gradient(90deg,#ff7f50,#45d1b3); transition:width 0.2s; }
+
+  /* === HUD (top-left) === */
+  .hud {
+    position:fixed; top:18px; left:18px;
+    z-index:110; max-width:min(360px, calc(100vw - 260px));
+    display:none; pointer-events:none;
+  }
+  .hud-title {
+    font-family:'VT323',monospace; font-size:11px; color:#ff7f50;
+    letter-spacing:2px; margin-bottom:2px; text-transform:uppercase;
+  }
+  .hud-loc {
+    font-family:'VT323',monospace; font-size:clamp(24px, 2.3vw, 38px); font-weight:400;
+    color:rgba(244,255,247,0.92); line-height:0.9; letter-spacing:0.03em;
+    text-shadow: 0 2px 14px rgba(0,0,0,0.32), 0 1px 0 rgba(0,0,0,0.4);
+  }
+  .hud-hint { font-size:13px; color:rgba(152,181,172,0.6); margin-top:4px; }
+
+  /* === SIDEBAR (right) — ClawLibrary style === */
+  .sidebar {
+    position:fixed; top:12px; right:8px; z-index:115;
+    width:min(180px, calc(100vw - 16px)); max-height:calc(100vh - 24px);
+    background:linear-gradient(180deg, rgba(12,29,27,0.56) 0%, rgba(8,21,19,0.38) 100%);
+    border:1px solid rgba(171,218,201,0.14);
+    border-radius:14px; padding:12px;
+    backdrop-filter:blur(10px);
+    background-clip:padding-box;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.04);
+    display:none; overflow:hidden;
+    flex-direction:column; gap:10px;
+  }
+  .sidebar::-webkit-scrollbar { width:4px; }
+  .sidebar::-webkit-scrollbar-thumb { background:rgba(171,218,201,0.2); border-radius:4px; }
+  .sidebar-head {
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:10px; padding-bottom:8px;
+    border-bottom:1px solid rgba(171,218,201,0.12);
+  }
+  .sidebar-stamp {
+    font-family:'VT323',monospace; font-size:22px; line-height:0.9; color:#ff7f50;
+    text-shadow:0 2px 10px rgba(255,127,80,0.16);
+  }
+  .sidebar-meta { display:flex; gap:6px; }
+  .sidebar-meta-btn {
+    font-family:'VT323',monospace; font-size:13px;
+    background:rgba(9,24,22,0.56); color:rgba(152,181,172,0.78);
+    border:1px solid rgba(171,218,201,0.18); padding:3px 8px;
+    cursor:pointer; border-radius:6px; transition:all 0.15s;
+  }
+  .sidebar-meta-btn:hover { background:rgba(19,46,44,0.9); color:#d6eee5; }
+
+  .room-list { display:flex; flex-direction:column; gap:4px; }
+  .room-btn {
+    display:grid; grid-template-columns:8px 1fr; gap:8px; align-items:center;
+    background:rgba(9,24,22,0.56); border:1px solid rgba(171,218,201,0.18);
+    border-radius:10px; padding:7px 9px 7px 10px;
+    cursor:pointer; transition:all 0.15s; text-align:left;
+    font-family:inherit;
+  }
+  .room-btn:hover {
+    transform:translateY(-1px);
+    border-color:rgba(171,218,201,0.42);
+    background:rgba(10,26,24,0.74);
+  }
+  .room-btn.active {
+    border-color:color-mix(in srgb, var(--rc) 46%, transparent);
+    background:rgba(10,26,24,0.74);
+  }
+  .room-dot {
+    width:7px; height:7px; border-radius:50%;
+    background:var(--rc);
+    box-shadow:0 0 8px var(--rc);
+  }
+  .room-btn-info { min-width:0; }
+  .room-btn-name {
+    font-family:'VT323',monospace; font-size:15px;
+    color:var(--rc); line-height:1; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis;
+  }
+  .room-btn-sub {
+    font-size:9px; color:rgba(152,181,172,0.7);
+    text-transform:uppercase; letter-spacing:0.06em; line-height:1.2;
+  }
+
+  /* === TOP BUTTONS (inside sidebar now) === */
+  .top-btns { position:fixed; top:14px; right:14px; display:none; gap:8px; z-index:100; }
+
+  /* === INFO PANEL (popup) === */
+  .panel-overlay {
+    position:fixed; inset:0; z-index:150;
+    background:rgba(0,0,0,0.55); backdrop-filter:blur(4px);
+    display:none; opacity:0; transition:opacity 0.25s;
+    justify-content:center; align-items:center;
+  }
+  .panel-overlay.active { display:flex; opacity:1; }
+  .panel {
+    width:min(820px,calc(100% - 32px)); max-height:calc(100vh - 60px);
+    background:linear-gradient(180deg, rgba(13,23,22,0.96) 0%, rgba(9,18,17,0.98) 100%);
+    border:1px solid rgba(171,218,201,0.18);
+    box-shadow:0 0 60px rgba(0,0,0,0.6), 0 0 20px rgba(69,209,179,0.06);
+    display:flex; flex-direction:column; border-radius:14px;
+    animation:panelIn 0.2s ease-out;
+  }
+  @keyframes panelIn { from{transform:translateY(16px) scale(0.98);opacity:0} to{transform:translateY(0) scale(1);opacity:1} }
+  .panel-hdr {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:14px 20px; border-bottom:1px solid rgba(171,218,201,0.12);
+    background:rgba(22,53,50,0.3);
+    border-radius:14px 14px 0 0;
+  }
+  .panel-hdr-title { font-family:'VT323',monospace; font-size:18px; letter-spacing:1px; }
+  .panel-close {
+    background:transparent; border:1px solid rgba(152,181,172,0.3); color:rgba(152,181,172,0.6);
+    width:28px; height:28px; cursor:pointer; font-size:16px; line-height:1;
+    transition:all 0.15s; border-radius:6px;
+  }
+  .panel-close:hover { border-color:#ff6978; color:#ff6978; }
+  .panel-body {
+    padding:20px 24px; font-size:17px; line-height:1.7; color:rgba(152,181,172,0.9);
+    overflow-y:auto; flex:1;
+  }
+  .panel-body strong { color:#ecf7f3; }
+  .panel-body a { color:#59d0ff; text-decoration:underline; }
+  .panel-body .divider { border:none; border-top:1px solid rgba(171,218,201,0.15); margin:14px 0; }
+  .panel-body .stat-row { display:flex; gap:10px; flex-wrap:wrap; margin:12px 0; }
+  .panel-body .stat-box {
+    background:rgba(9,24,22,0.7); border:1px solid rgba(171,218,201,0.18);
+    padding:10px 14px; flex:1; min-width:90px; text-align:center; border-radius:10px;
+  }
+  .panel-body .stat-val { font-family:'VT323',monospace; font-size:28px; font-weight:bold; }
+  .panel-body .stat-lbl { font-size:12px; color:rgba(152,181,172,0.6); margin-top:2px; text-transform:uppercase; letter-spacing:0.06em; }
+  .panel-body .tag {
+    display:inline-block; font-size:14px; padding:3px 10px; margin:3px;
+    border:1px solid; background:rgba(0,0,0,0.3); border-radius:6px;
+  }
+  .panel-body .p-item {
+    background:rgba(9,24,22,0.6); border:1px solid rgba(171,218,201,0.15); border-left:3px solid;
+    padding:14px 16px; margin:8px 0; transition:border-color 0.2s; border-radius:8px;
+  }
+  .panel-body .p-item:hover { border-color:rgba(171,218,201,0.4); }
+  .panel-body .p-icon-header {
+    min-height:60px; padding:12px 14px; display:flex; align-items:center; justify-content:center;
+    border-radius:8px 8px 0 0; margin:-14px -16px 12px -16px; position:relative; overflow:hidden;
+  }
+  .panel-body .p-icon-header i { font-size:36px; opacity:0.85; position:relative; z-index:1; }
+  .panel-body .p-icon-header > div { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .panel-body .p-icon-header .p-version {
+    font-size:11px; padding:2px 8px;
+    border-radius:4px; font-family:'VT323',monospace; z-index:1; white-space:nowrap;
+  }
+  .panel-body .p-icon-header .p-gradient { position:absolute; inset:0; }
+  .panel-body .p-icon-header .p-bar { position:absolute; bottom:0; left:0; width:100%; height:3px; }
+  .panel-body .p-title { color:#ecf7f3; font-size:19px; margin-bottom:3px; }
+  .panel-body .p-tech { font-size:13px; color:rgba(152,181,172,0.6); margin-bottom:5px; }
+  .panel-body .p-desc { font-size:15px; color:rgba(152,181,172,0.8); }
+  .panel-body .tl-item { padding-left:22px; border-left:2px solid rgba(171,218,201,0.2); margin:14px 0; position:relative; }
+  .panel-body .tl-item::before {
+    content:''; position:absolute; left:-6px; top:6px;
+    width:10px; height:10px; border-radius:50%;
+    border:2px solid var(--tl-color, #45d1b3); background:#0d1716;
+  }
+  .panel-body .tl-date { font-size:14px; color:#ff7f50; }
+  .panel-body .tl-role { font-size:18px; color:#ecf7f3; }
+  .panel-body .tl-comp { font-size:15px; color:rgba(152,181,172,0.7); }
+  .panel-body .tl-desc { font-size:14px; color:rgba(152,181,172,0.6); margin-top:4px; }
+  .panel-body .cert-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:8px; margin:10px 0; }
+  .panel-body .cert-item {
+    background:rgba(9,24,22,0.6); border:1px solid rgba(171,218,201,0.15); padding:12px; text-align:center;
+    font-size:15px; transition:border-color 0.2s; border-radius:8px;
+  }
+  .panel-body .cert-item:hover { border-color:rgba(171,218,201,0.4); }
+
+  /* === BOTTOM-LEFT ACTIVITY HUD (ClawLibrary style) === */
+  .hud-activity {
+    position:fixed; bottom:48px; left:14px; z-index:100;
+    width:min(320px, calc(100vw - 36px));
+    display:none; flex-direction:column; gap:8px;
+  }
+  .hud-stats {
+    display:flex; gap:16px; padding:8px 0;
+  }
+  .hud-stat-val {
+    font-family:'VT323',monospace; font-size:24px;
+    color:rgba(244,255,247,0.88);
+    text-shadow:0 0 8px rgba(69,209,179,0.2);
+  }
+  .hud-stat-lbl {
+    font-size:9px; color:rgba(152,181,172,0.6);
+    text-transform:uppercase; letter-spacing:0.08em;
+  }
+  .hud-actor-line {
+    font-family:'VT323',monospace; font-size:15px;
+    color:rgba(236,247,243,0.85);
+  }
+  .hud-actor-detail {
+    font-size:11px; color:rgba(152,181,172,0.5);
+  }
+
+  /* === PANEL SWITCHER (bottom-left pill) === */
+  .panel-switcher {
+    position:fixed; bottom:14px; left:14px; z-index:116;
+    display:none; gap:0;
+    border:1px solid rgba(171,218,201,0.28);
+    border-radius:999px;
+    background:rgba(9,24,22,0.82);
+    backdrop-filter:blur(8px);
+    overflow:hidden;
+  }
+  .panel-switcher-btn {
+    font-family:'VT323',monospace; font-size:14px;
+    color:rgba(152,181,172,0.78); background:transparent;
+    border:none; padding:5px 14px; cursor:pointer;
+    transition:all 0.15s;
+  }
+  .panel-switcher-btn.active {
+    background:rgba(19,46,44,0.9); color:#d6eee5;
+  }
+  .panel-switcher-btn + .panel-switcher-btn {
+    border-left:1px solid rgba(171,218,201,0.18);
+  }
+
+  /* === ROOM LABELS (floating HTML over canvas) === */
+  .room-labels { position:fixed; inset:0; z-index:10; pointer-events:none; }
+  .room-lbl {
+    position:absolute; font-family:'VT323',monospace; font-size:16px; line-height:0.92;
+    padding:7px 9px; letter-spacing:0.5px;
+    background:linear-gradient(180deg, rgba(10,24,22,0.84), rgba(8,20,19,0.66));
+    border:1px solid rgba(171,218,201,0.3);
+    color:rgba(236,247,243,0.92);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 4px 10px rgba(0,0,0,0.18);
+    white-space:nowrap; transform:translate(-50%,-50%);
+    pointer-events:auto; cursor:pointer;
+    transition: border-color 120ms ease, background 120ms ease; border-radius:12px;
+  }
+  .room-lbl:hover {
+    border-color:rgba(171,218,201,0.62);
+    background:linear-gradient(180deg, rgba(12,30,27,0.92), rgba(10,24,22,0.72));
+    transform:translate(-50%,-50%) scale(1.02);
+  }
+
+  /* === ATTRIBUTION === */
+  #attribution {
+    position:fixed; bottom:6px; left:50%; transform:translateX(-50%);
+    z-index:90; font-size:11px; color:rgba(152,181,172,0.4);
+    pointer-events:auto; display:none;
+  }
+  #attribution a { color:rgba(152,181,172,0.55); }
+
+  @media (max-width:700px) {
+    :root { --stage-left-gutter:0px; --stage-right-gutter:0px; }
+    .hud { max-width:180px; }
+    .start-title { font-size:28px; }
+    .start-btn { font-size:15px; padding:12px 24px; }
+    .panel { width:calc(100% - 16px); max-height:calc(100vh - 32px); }
+    .panel-body { padding:14px 16px; font-size:15px; }
+    .room-lbl { font-size:10px; padding:2px 6px; }
+    .sidebar { width:calc(100% - 28px); max-height:160px; top:auto; bottom:8px; right:14px; left:14px;
+      flex-direction:row; overflow-x:auto; }
+    .room-list { flex-direction:row; flex-wrap:nowrap; overflow-x:auto; }
+    .room-btn { min-width:130px; flex:0 0 130px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Start Screen -->
+<div id="startScreen">
+  <div class="start-capybara">🦫</div>
+  <div class="start-title" id="startTitle">WAYNE'S ARCHIVE</div>
+  <p class="start-sub" id="startSub">A Capybara's 10-Year Career Adventure</p>
+  <div class="loading-bar" id="loadingBar"><div class="loading-fill" id="loadingFill"></div></div>
+  <button class="start-btn" id="startBtn" style="display:none" onclick="startGame()">PRESS TO START</button>
+  <div class="start-hints" id="startHints" style="display:none"></div>
+</div>
+
+<!-- HUD (top-left location) -->
+<div class="hud" id="hud">
+  <div class="hud-title">ARCHIVE LIVE</div>
+  <div class="hud-loc" id="hudLoc">Main Hall</div>
+  <div class="hud-hint" id="hudHint"></div>
+</div>
+
+<!-- Sidebar (right) — ClawLibrary-style room list -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-head">
+    <div>
+      <div class="sidebar-stamp">ARCHIVE</div>
+      <div style="font-size:10px;color:rgba(152,181,172,0.5);text-transform:uppercase;letter-spacing:0.08em;">Wayne's Portfolio</div>
+    </div>
+    <div class="sidebar-meta">
+      <button class="sidebar-meta-btn" id="langBtn" onclick="toggleLang()">EN</button>
+    </div>
+  </div>
+  <div class="room-list" id="roomList"></div>
+  <div style="margin-top:8px;text-align:center;">
+    <button class="sidebar-meta-btn" onclick="window.open('https://waynechou-resume.vercel.app/','_blank')" style="width:100%;font-size:12px;padding:5px;">↗ MAIN SITE</button>
+  </div>
+</aside>
+
+<!-- Game Container -->
+<div id="game-container"></div>
+
+<!-- Room Labels (positioned via JS) -->
+<div class="room-labels" id="roomLabels"></div>
+
+<!-- Bottom-left activity -->
+<div class="hud-activity" id="hudActivity">
+  <div class="hud-stats" id="hudStats"></div>
+  <div class="hud-actor-line" id="hudActorLine"></div>
+  <div class="hud-actor-detail" id="hudActorDetail"></div>
+</div>
+
+<!-- Bottom-left pill switcher -->
+<div class="panel-switcher" id="panelSwitcher">
+  <button class="panel-switcher-btn active" onclick="toggleInfoPanel(true)">Info</button>
+  <button class="panel-switcher-btn" onclick="window.open('https://waynechou-resume.vercel.app/','_blank')">Site</button>
+</div>
+
+<!-- Attribution (MIT license requirement) -->
+<div id="attribution">
+  Map art by <a href="https://github.com/shengyu-meng/ClawLibrary" target="_blank">ClawLibrary</a> (MIT License)
+</div>
+
+<!-- Panel -->
+<div class="panel-overlay" id="panelOverlay" onclick="if(event.target===this)closePanel()">
+  <div class="panel">
+    <div class="panel-hdr">
+      <div class="panel-hdr-title" id="panelTitle"></div>
+      <button class="panel-close" onclick="closePanel()">&times;</button>
+    </div>
+    <div class="panel-body" id="panelBody"></div>
+  </div>
+</div>
+
+<script>
+// ================================================================
+// i18n & Room Config — ClawLibrary color palette
+// ================================================================
+let lang = (navigator.language||'en').startsWith('zh')?'zh':'en';
+try{const s=localStorage.getItem('wl');if(s)lang=s;}catch(e){}
+
+const ROOM_MAP = {
+  memory:      { zh:{name:'個人簡介',    icon:'👤'}, en:{name:'Profile',       icon:'👤'}, color:'#a58aff', sub:'MEMORY VAULT' },
+  skills:      { zh:{name:'技能工坊',    icon:'⚡'}, en:{name:'Tech Lab',      icon:'⚡'}, color:'#7ce6c7', sub:'SKILL FORGE' },
+  mcp:         { zh:{name:'專案展示',    icon:'🚀'}, en:{name:'Projects',      icon:'🚀'}, color:'#5fe3ff', sub:'MCP DOCK' },
+  alarm:       { zh:{name:'成就展示',    icon:'🏆'}, en:{name:'Achievements',  icon:'🏆'}, color:'#ff6978', sub:'ALERT DECK' },
+  gateway:     { zh:{name:'學經歷總覽',  icon:'📋'}, en:{name:'Career Hub',    icon:'📋'}, color:'#59d0ff', sub:'INTERFACE GATEWAY' },
+  document:    { zh:{name:'認證檔案',    icon:'📜'}, en:{name:'Certifications',icon:'📜'}, color:'#81a8ff', sub:'DOCS ARCHIVE' },
+  agent:       { zh:{name:'聯絡方式',    icon:'📮'}, en:{name:'Contact',       icon:'📮'}, color:'#98f59d', sub:'AGENT LINK' },
+  break_room:  { zh:{name:'休息室',      icon:'☕'}, en:{name:'Break Room',    icon:'☕'}, color:'#bec6db', sub:'BREAK ROOM' },
+};
+
+function getRoomLabel(id) {
+  const r = ROOM_MAP[id]; if(!r) return id;
+  const l = r[lang]; return `${l.icon} ${l.name}`;
+}
+function getRoomName(id) {
+  const r = ROOM_MAP[id]; if(!r) return id;
+  return r[lang].name;
+}
+function getRoomColor(id) { return ROOM_MAP[id]?.color || '#45d1b3'; }
+
+// Panel content
+function getPanelContent(id) {
+  const zh = lang==='zh';
+  switch(id) {
+    case 'memory': return {
+      title: zh ? '👤 PROFILE // 個人簡介' : '👤 PROFILE',
+      body: zh
+        ? `<strong>周士驊 (Wayne Chou)</strong><br>Product Manager × AI Engineer<hr class="divider">
+<div class="stat-row">
+<div class="stat-box"><div class="stat-val" style="color:#a58aff">10+</div><div class="stat-lbl">年資</div></div>
+<div class="stat-box"><div class="stat-val" style="color:#5fe3ff">$1.5億</div><div class="stat-lbl">專案規模</div></div>
+<div class="stat-box"><div class="stat-val" style="color:#7ce6c7">9+</div><div class="stat-lbl">個人專案</div></div>
+<div class="stat-box"><div class="stat-val" style="color:#f4d06f">332x</div><div class="stat-lbl">最佳 ROI</div></div>
+</div><hr class="divider">
+我是<strong>周士驊 (Wayne)</strong>，目前於 <strong style="color:#59d0ff">Arizona State University</strong> 攻讀工程碩士（GPA <strong>4.00</strong>），同時持有國立中央大學工業管理碩士學位。<br><br>
+擁有 <strong style="color:#f4d06f">10 年以上</strong>跨領域實戰經驗，橫跨<strong>電信</strong>（中華電信）與<strong>半導體製造</strong>（日月光 ASE），具備 <strong style="color:#ff8aa5">PMP</strong> 與 <strong style="color:#ff8aa5">CSPO</strong> 雙認證。<br><br>
+我擅長將複雜的商業需求轉化為可交付的技術方案——從千萬級智慧城市專案管理，到獨立開發 <strong style="color:#7ce6c7">RAG 企業助理</strong>、<strong style="color:#7ce6c7">LSTM 量化交易平台</strong>，始終追求商業價值與技術深度的平衡。<br><br>
+<span class="tag" style="border-color:#a58aff;color:#a58aff">PMP</span>
+<span class="tag" style="border-color:#59d0ff;color:#59d0ff">CSPO</span>
+<span class="tag" style="border-color:#7ce6c7;color:#7ce6c7">Microsoft AI-900</span>
+<span class="tag" style="border-color:#ff8aa5;color:#ff8aa5">10+ 年經驗</span>
+<span class="tag" style="border-color:#f4d06f;color:#f4d06f">ASU 工程碩士</span>`
+        : `<strong>Shih-Hua (Wayne) Chou · 周士驊</strong><br>Product Manager × AI Engineer<hr class="divider">
+<div class="stat-row">
+<div class="stat-box"><div class="stat-val" style="color:#a58aff">10+</div><div class="stat-lbl">Years Exp</div></div>
+<div class="stat-box"><div class="stat-val" style="color:#5fe3ff">$5M+</div><div class="stat-lbl">Project Value</div></div>
+<div class="stat-box"><div class="stat-val" style="color:#7ce6c7">9+</div><div class="stat-lbl">Side Projects</div></div>
+<div class="stat-box"><div class="stat-val" style="color:#f4d06f">332x</div><div class="stat-lbl">Best ROI</div></div>
+</div><hr class="divider">
+I'm <strong>Shih-Hua (Wayne) Chou</strong>, currently pursuing an MS in Engineering at <strong style="color:#59d0ff">Arizona State University</strong> (GPA <strong>4.00</strong>), with a prior MS in Industrial Management from National Central University.<br><br>
+Over <strong style="color:#f4d06f">10 years</strong> of hands-on cross-industry experience spanning <strong>Telecom</strong> (Chunghwa Telecom) and <strong>Semiconductor Manufacturing</strong> (ASE Group), dual-certified as <strong style="color:#ff8aa5">PMP</strong> and <strong style="color:#ff8aa5">CSPO</strong>.<br><br>
+I specialize in translating complex business needs into shippable technical solutions — from managing multi-million-dollar smart city projects to independently building a <strong style="color:#7ce6c7">RAG enterprise assistant</strong> and an <strong style="color:#7ce6c7">LSTM-powered quant trading platform</strong>. Always balancing business impact with technical depth.<br><br>
+<span class="tag" style="border-color:#a58aff;color:#a58aff">PMP</span>
+<span class="tag" style="border-color:#59d0ff;color:#59d0ff">CSPO</span>
+<span class="tag" style="border-color:#7ce6c7;color:#7ce6c7">Microsoft AI-900</span>
+<span class="tag" style="border-color:#ff8aa5;color:#ff8aa5">10+ Years Experience</span>
+<span class="tag" style="border-color:#f4d06f;color:#f4d06f">ASU MS Engineering</span>`
+    };
+    case 'skills': return {
+      title: zh ? '⚡ TECH STACK // 技能工坊' : '⚡ TECH STACK',
+      body: `<strong style="color:#ff8aa5">▸ Core AI / ML</strong><br>
+<span class="tag" style="border-color:#ff8aa5;color:#ff8aa5">Python (Pandas, NumPy, Scikit-learn)</span>
+<span class="tag" style="border-color:#ff8aa5;color:#ff8aa5">LLM & RAG (LangChain, ChromaDB)</span>
+<span class="tag" style="border-color:#ff8aa5;color:#ff8aa5">Deep Learning (LSTM, NLP)</span>
+<span class="tag" style="border-color:#ff8aa5;color:#ff8aa5">Azure AI / Computer Vision</span>
+<span class="tag" style="border-color:#ff8aa5;color:#ff8aa5">Prompt Engineering</span>
+<hr class="divider">
+<strong style="color:#59d0ff">▸ ${zh?'數據 & 工具':'Data & Tools'}</strong><br>
+<span class="tag" style="border-color:#59d0ff;color:#59d0ff">SQL / ${zh?'資料庫':'Database'}</span>
+<span class="tag" style="border-color:#59d0ff;color:#59d0ff">Power BI ${zh?'視覺化':'Visualization'}</span>
+<span class="tag" style="border-color:#59d0ff;color:#59d0ff">JMP ${zh?'統計分析':'Statistics'}</span>
+<span class="tag" style="border-color:#59d0ff;color:#59d0ff">Plotly / Streamlit</span>
+<span class="tag" style="border-color:#59d0ff;color:#59d0ff">Google Analytics</span>
+<hr class="divider">
+<strong style="color:#7ce6c7">▸ ${zh?'後端 & ML':'Backend & ML'}</strong><br>
+<span class="tag" style="border-color:#7ce6c7;color:#7ce6c7">Python</span>
+<span class="tag" style="border-color:#7ce6c7;color:#7ce6c7">FastAPI</span>
+<span class="tag" style="border-color:#7ce6c7;color:#7ce6c7">LangChain</span>
+<span class="tag" style="border-color:#7ce6c7;color:#7ce6c7">RAG</span>
+<span class="tag" style="border-color:#7ce6c7;color:#7ce6c7">PyTorch</span>
+<span class="tag" style="border-color:#7ce6c7;color:#7ce6c7">TensorFlow</span>
+<span class="tag" style="border-color:#7ce6c7;color:#7ce6c7">Keras</span>
+<span class="tag" style="border-color:#7ce6c7;color:#7ce6c7">ChromaDB</span>
+<hr class="divider">
+<strong style="color:#5fe3ff">▸ Cloud & ${zh?'部署':'Deployment'}</strong><br>
+<span class="tag" style="border-color:#5fe3ff;color:#5fe3ff">AWS</span>
+<span class="tag" style="border-color:#5fe3ff;color:#5fe3ff">Azure</span>
+<span class="tag" style="border-color:#5fe3ff;color:#5fe3ff">Vercel</span>
+<span class="tag" style="border-color:#5fe3ff;color:#5fe3ff">Ngrok</span>
+<span class="tag" style="border-color:#5fe3ff;color:#5fe3ff">LINE API</span>
+<span class="tag" style="border-color:#5fe3ff;color:#5fe3ff">Google APIs</span>
+<hr class="divider">
+<strong style="color:#ff6978">▸ AI Agent / IDE</strong><br>
+<span class="tag" style="border-color:#ff6978;color:#ff6978">OpenClaw</span>
+<span class="tag" style="border-color:#ff6978;color:#ff6978">Agent Skills</span>
+<span class="tag" style="border-color:#ff6978;color:#ff6978">n8n</span>
+<span class="tag" style="border-color:#ff6978;color:#ff6978">Make.com</span>
+<span class="tag" style="border-color:#ff6978;color:#ff6978">Cursor</span>
+<span class="tag" style="border-color:#ff6978;color:#ff6978">Antigravity</span>
+<hr class="divider">
+<strong style="color:#ffb16b">▸ ${zh?'專案/產品管理':'Project / Product'}</strong><br>
+<span class="tag" style="border-color:#ffb16b;color:#ffb16b">${zh?'產品全生命週期管理':'Product Lifecycle'}</span>
+<span class="tag" style="border-color:#ffb16b;color:#ffb16b">${zh?'政府/企業備標':'Gov/Enterprise RFP'}</span>
+<span class="tag" style="border-color:#ffb16b;color:#ffb16b">${zh?'跨部門/跨國協作':'Cross-team Collab'}</span>
+<span class="tag" style="border-color:#ffb16b;color:#ffb16b">WBS / ${zh?'甘特圖':'Gantt'}</span>
+<span class="tag" style="border-color:#ffb16b;color:#ffb16b">SWOT / PEST</span>
+<span class="tag" style="border-color:#ffb16b;color:#ffb16b">${zh?'使用者情境 & UX':'User Scenario & UX'}</span>
+<hr class="divider">
+<strong style="color:#f4d06f">▸ ${zh?'領域專長':'Domain Expertise'}</strong><br>
+<span class="tag" style="border-color:#f4d06f;color:#f4d06f">${zh?'智慧城市 / IoT':'Smart City / IoT'}</span>
+<span class="tag" style="border-color:#f4d06f;color:#f4d06f">${zh?'半導體設備（封測、FMEA）':'Semiconductor (Packaging, FMEA)'}</span>
+<span class="tag" style="border-color:#f4d06f;color:#f4d06f">${zh?'能源管理 (ISO 50001)':'Energy Mgmt (ISO 50001)'}</span>
+<span class="tag" style="border-color:#f4d06f;color:#f4d06f">${zh?'雲端平台 & 資通訊架構':'Cloud & ICT Architecture'}</span>
+<span class="tag" style="border-color:#f4d06f;color:#f4d06f">${zh?'政府採購 & 大型標案':'Gov Procurement'}</span>
+<span class="tag" style="border-color:#f4d06f;color:#f4d06f">${zh?'金融量化交易 & 策略回測':'Quant Trading & Backtesting'}</span>`
+    };
+    case 'mcp': return {
+      title: zh ? '🚀 PROJECTS // 專案展示' : '🚀 PROJECTS',
+      body: `<div class="p-item" style="border-left-color:#ff8aa5"><div class="p-icon-header"><div class="p-gradient" style="background:linear-gradient(135deg,rgba(168,85,247,0.4),rgba(17,24,39,1))"></div><i class="fas fa-chart-line" style="color:#a855f7"></i><span class="p-version" style="background:rgba(168,85,247,0.2);border:1px solid rgba(168,85,247,0.5);color:#d8b4fe">v4.5</span><div class="p-bar" style="background:linear-gradient(90deg,#a855f7,#06b6d4)"></div></div><div class="p-title">${zh?'AI 量化交易平台':'AI Quant Trading Platform'}</div><div class="p-tech">LSTM + RAG + Auto-Notify</div><div class="p-desc">${zh?'多檔台股個股 LSTM 模型整合 RAG 財報檢索與雙層新聞情感分析。結合動態情感加權、技術指標與籌碼面數據，透過 LINE/Telegram 推送交易訊號給付費用戶。':'Multi-stock LSTM with RAG-powered financial retrieval and dual-source sentiment analysis. Combines dynamic sentiment weighting, technical indicators and institutional data, pushing trading signals via LINE/Telegram.'}</div></div>
+<div class="p-item" style="border-left-color:#7ce6c7"><div class="p-icon-header"><div class="p-gradient" style="background:linear-gradient(135deg,rgba(34,197,94,0.4),rgba(17,24,39,1))"></div><i class="fab fa-line" style="color:#22c55e"></i><span class="p-version" style="background:rgba(34,197,94,0.2);border:1px solid rgba(34,197,94,0.5);color:#86efac">Agent</span><div class="p-bar" style="background:linear-gradient(90deg,#22c55e,#06b6d4)"></div></div><div class="p-title">${zh?'企業級 RAG LINE 助理':'Enterprise RAG LINE Assistant'}</div><div class="p-tech">FastAPI + LangChain + ChromaDB</div><div class="p-desc">${zh?'多模態 Agent 架構，支援語音雙向對話、即時知識庫上傳更新、Google Calendar/Drive 整合、DALL-E 3 圖文生成，並具備管理後台與權限控管。':'Multi-modal Agent with voice dialogue, real-time knowledge base updates, Google Calendar/Drive integration, DALL-E 3 image generation, admin dashboard & access control.'}</div></div>
+<div class="p-item" style="border-left-color:#a58aff"><div class="p-icon-header"><div class="p-gradient" style="background:linear-gradient(135deg,rgba(99,102,241,0.4),rgba(17,24,39,1))"></div><i class="fas fa-chart-pie" style="color:#818cf8"></i><div class="p-bar" style="background:linear-gradient(90deg,#818cf8,#3b82f6)"></div></div><div class="p-title">${zh?'智慧股票分析系統':'Smart Stock Analysis System'}</div><div class="p-tech">LSTM + NLP + Plotly</div><div class="p-desc">${zh?'第五版迭代產品。整合動態新聞情感加權、智慧時序對齊、SHAP 模型解釋，並由生成式 AI 輸出結構化投資建議。可自訂預測天數與回溯測試。':'5th iteration. Dynamic news sentiment weighting, smart time-series alignment, SHAP model interpretation, with generative AI structured investment advice. Customizable forecast days & backtesting.'}</div></div>
+<div class="p-item" style="border-left-color:#59d0ff"><div class="p-icon-header"><div class="p-gradient" style="background:linear-gradient(135deg,rgba(6,182,212,0.4),rgba(17,24,39,1))"></div><i class="fas fa-industry" style="color:#22d3ee"></i><div class="p-bar" style="background:linear-gradient(90deg,#22d3ee,#a855f7)"></div></div><div class="p-title">${zh?'智慧製造 Digital Twin':'Smart Factory Digital Twin'}</div><div class="p-tech">Gemini RAG + 3D + OEE</div><div class="p-desc">${zh?'3D 建模 + AI 預測性維護（72 小時提前預警），自然語言查詢生產數據將決策時間從 20 分鐘縮短至 30 秒。整合 ERP/MES 資訊流。':'3D modeling + AI predictive maintenance (72-hr early warning). NL queries reduce decision time from 20 min to 30 sec. Integrates ERP/MES data flows.'}</div></div>
+<div class="p-item" style="border-left-color:#5fe3ff"><div class="p-icon-header"><div class="p-gradient" style="background:linear-gradient(135deg,rgba(59,130,246,0.4),rgba(17,24,39,1))"></div><i class="fas fa-eye" style="color:#3b82f6"></i><div class="p-bar" style="background:linear-gradient(90deg,#3b82f6,#a855f7)"></div></div><div class="p-title">Azure AI ${zh?'電腦視覺方案':'Computer Vision'}</div><div class="p-tech">Image Recognition + OCR</div><div class="p-desc">${zh?'實作 Azure AI Vision 完整方案，涵蓋影像識別、物件偵測、臉部辨識與 OCR 文字擷取，可延伸應用於零售、製造、醫療等領域。':'Full Azure AI Vision implementation covering image recognition, object detection, face recognition & OCR text extraction for retail, manufacturing & healthcare.'}</div></div>
+<div class="p-item" style="border-left-color:#ffb16b"><div class="p-icon-header"><div class="p-gradient" style="background:linear-gradient(135deg,rgba(249,115,22,0.4),rgba(17,24,39,1))"></div><i class="fas fa-network-wired" style="color:#f97316"></i><div class="p-bar" style="background:linear-gradient(90deg,#f97316,#ef4444)"></div></div><div class="p-title">${zh?'n8n AI Agent 自動化':'n8n AI Agent Automation'}</div><div class="p-tech">Workflow Automation</div><div class="p-desc">${zh?'透過 n8n 打造 AI Agent，自動執行郵件搜尋/發送、行事曆登記、Google Sheet 填寫、Docs 文章撰寫等多步驟任務。':'AI Agent via n8n automating email search/send, calendar booking, Google Sheet filling, Docs writing and multi-step tasks.'}</div></div>
+<div class="p-item" style="border-left-color:#ff6978"><div class="p-icon-header"><div class="p-gradient" style="background:linear-gradient(135deg,rgba(236,72,153,0.4),rgba(17,24,39,1))"></div><i class="fas fa-heartbeat" style="color:#ec4899"></i><div class="p-bar" style="background:linear-gradient(90deg,#ec4899,#a855f7)"></div></div><div class="p-title">${zh?'AI 醫療助理':'AI Medical Assistant'}</div><div class="p-tech">LINE Bot + RAG + Dashboard</div><div class="p-desc">${zh?'醫療場景 LINE 智慧助理，支援自然語言掛號、互動式預約管理、RAG 衛教問答、自動提醒機制與後台數據儀表板。':'Healthcare LINE assistant with NL appointment booking, interactive scheduling, RAG health Q&A, auto-reminders & data dashboard.'}</div></div>
+<div class="p-item" style="border-left-color:#f4d06f"><div class="p-icon-header"><div class="p-gradient" style="background:linear-gradient(135deg,rgba(234,179,8,0.4),rgba(17,24,39,1))"></div><i class="fas fa-cogs" style="color:#eab308"></i><div class="p-bar" style="background:linear-gradient(90deg,#eab308,#f97316)"></div></div><div class="p-title">${zh?'Make.com 自動化流程':'Make.com Automation'}</div><div class="p-tech">Meeting Summary + RSS</div><div class="p-desc">${zh?'會議記錄智慧摘要與分享、RSS 新聞報告自動彙整與發送，全程低代碼整合 OpenAI 與第三方服務。':'Smart meeting summary & sharing, RSS news auto-aggregation, low-code integration with OpenAI & third-party services.'}</div></div>
+<div class="p-item" style="border-left-color:#98f59d"><div class="p-icon-header"><div class="p-gradient" style="background:linear-gradient(135deg,rgba(20,184,166,0.4),rgba(17,24,39,1))"></div><i class="fas fa-comments" style="color:#14b8a6"></i><div class="p-bar" style="background:linear-gradient(90deg,#14b8a6,#22c55e)"></div></div><div class="p-title">${zh?'LINE Gemini 聊天機器人':'LINE Gemini Chatbot'}</div><div class="p-tech">Google Gemini API</div><div class="p-desc">${zh?'透過 Python 介接 Google Gemini API，打造高效靈活的 LINE 對話機器人，作為 LLM 介接架構的快速原型。':'Python-powered LINE chatbot via Google Gemini API, serving as a rapid LLM integration prototype.'}</div></div>`
+    };
+    case 'gateway': return {
+      title: zh ? '📋 EDUCATION & EXPERIENCE // 學經歷總覽' : '📋 EDUCATION & EXPERIENCE',
+      body: `<strong style="color:#59d0ff">${zh?'▸ 學歷':'▸ Education'}</strong><hr class="divider">
+<div class="tl-item" style="border-left-color:rgba(89,208,255,0.3);--tl-color:#59d0ff"><div class="tl-date">2025.03 — 2027.03</div><div class="tl-role">MS in Engineering (${zh?'就讀中':'In Progress'})</div><div class="tl-comp">Arizona State University · USA</div><div class="tl-desc"><strong>GPA 4.00 / 4.33</strong><br>${zh?'專注於 AI / ML 與系統工程，已取得 ASU <span class="tag" style="border-color:#ff8aa5;color:#ff8aa5">AI/ML Professional</span> 與 <span class="tag" style="border-color:#7ce6c7;color:#7ce6c7">Big Data Professional</span> 兩項研究所層級專業認證。':'Focused on AI/ML & Systems Engineering. Earned ASU <span class="tag" style="border-color:#ff8aa5;color:#ff8aa5">AI/ML Professional</span> & <span class="tag" style="border-color:#7ce6c7;color:#7ce6c7">Big Data Professional</span> graduate certificates.'}</div></div>
+<div class="tl-item" style="border-left-color:rgba(165,138,255,0.3);--tl-color:#a58aff"><div class="tl-date">2020.09 — 2022.06</div><div class="tl-role">MS in Industrial Management (${zh?'已畢業':'Graduated'})</div><div class="tl-comp">${zh?'國立中央大學 National Central University':'National Central University'} · Taiwan</div><div class="tl-desc"><strong>GPA 4.04 / 4.30</strong><br>${zh?'在職進修工業管理研究所碩士學位，研究方向涵蓋專案管理、製造系統與數據分析，奠定後續轉職產品經理與投入 AI 領域的學術基礎。':'Part-time MS in Industrial Management. Research in project management, manufacturing systems & data analysis, building the academic foundation for PM career & AI transition.'}</div></div>
+<br><strong style="color:#ffb16b">${zh?'▸ 經歷':'▸ Work Experience'}</strong><hr class="divider">
+<div class="tl-item" style="border-left-color:rgba(89,208,255,0.3);--tl-color:#59d0ff"><div class="tl-date">2022.09 — 2024.09</div><div class="tl-role">${zh?'產品經理':'Product Manager'}</div><div class="tl-comp">${zh?'中華電信 Chunghwa Telecom · 台北':'Chunghwa Telecom · Taipei'}</div><div class="tl-desc">${zh?'▸ 主導智慧路燈與 EV 充電樁產品全生命週期，<strong>累計專案規模逾 NT$1.5 億</strong>。<br>▸ 協助新北市政府建置智慧共桿，整合環境感測、太陽能與節能 LED（節電 70-80%）。<br>▸ 定義充電樁管理平台 MVP，從需求調查、規劃設計到使用者測試完整負責。<br>▸ 撰寫政府標案規格與服務建議書，獲公司「<span style="color:#f4d06f">工作績優</span>」與「<span style="color:#f4d06f">行銷績優</span>」嘉獎。':'▸ Led smart streetlight & EV charging full product lifecycle, <strong>$5M+ total project value</strong>.<br>▸ Deployed smart multipoles for New Taipei City with environmental sensors, solar & energy-efficient LED (70-80% power savings).<br>▸ Defined EV charging management platform MVP end-to-end.<br>▸ Authored government RFP specs; earned <span style="color:#f4d06f">Outstanding Work</span> & <span style="color:#f4d06f">Marketing Excellence</span> awards.'}</div></div>
+<div class="tl-item" style="border-left-color:rgba(150,150,150,0.3);--tl-color:#999"><div class="tl-date">2021.10 — 2022.08</div><div class="tl-role">${zh?'專案工程師 · 技術中心':'Project Engineer · Technology Center'}</div><div class="tl-comp">${zh?'日月光半導體 ASE Group · 中壢':'ASE Group · Zhongli'}</div><div class="tl-desc">${zh?'▸ 運用 JMP 統計分析診斷產線瓶頸並提出改善方案。<br>▸ 主導全廠機台改善計畫（加裝集塵偵測），<strong>降低報廢風險約 10%</strong>。<br>▸ 推動工廠自動化專案，協助減少人工錯誤約 15%。':'▸ Used JMP statistical analysis to diagnose production bottlenecks.<br>▸ Led factory-wide machine improvement (dust detection), <strong>reducing scrap risk ~10%</strong>.<br>▸ Drove factory automation projects, reducing manual errors ~15%.'}</div></div>
+<div class="tl-item" style="border-left-color:rgba(89,208,255,0.3);--tl-color:#59d0ff"><div class="tl-date">2020.07 — 2021.07</div><div class="tl-role">${zh?'專案工程師':'Project Engineer'}</div><div class="tl-comp">${zh?'中華電信 Chunghwa Telecom · 台北':'Chunghwa Telecom · Taipei'}</div><div class="tl-desc">${zh?'▸ 負責<strong>逾 NT$600 萬</strong>政府採購標案的規劃與執行，確保如質如期交付。<br>▸ 負責「班班有冷氣」全國中小學電力改善計畫的系統架構設計與 App 介面規劃。<br>▸ 負責設備介接整合測試與專案採購流程。':'▸ Managed <strong>$200K+</strong> government procurement project, ensuring on-time delivery.<br>▸ Designed system architecture & app UI for national school AC deployment ("Every Classroom Has AC").<br>▸ Led equipment integration testing & procurement processes.'}</div></div>
+<div class="tl-item" style="border-left-color:rgba(150,150,150,0.3);--tl-color:#999"><div class="tl-date">2013.12 — 2020.03</div><div class="tl-role">${zh?'設備工程師 → 主任':'Equipment Engineer → Supervisor'}</div><div class="tl-comp">${zh?'日月光半導體 ASE Group · 中壢':'ASE Group · Zhongli'} (${zh?'管理 9-12 人':'managed 9-12'})</div><div class="tl-desc">${zh?'▸ 因表現優異晉升設備主任，管理 9-12 人團隊。<br>▸ 提出 MARK 對位板改善案，<strong>年節省成本約 NT$60 萬，ROI 達 332 倍</strong>。<br>▸ 透過機台優化提升良率約 5%，並以 4.5 年完成業界平均需 6 年的三站點跨站學習。':'▸ Promoted to Supervisor for outstanding performance, managed 9-12 person team.<br>▸ Proposed MARK alignment improvement <strong>saving $20K/year at 332x ROI</strong>.<br>▸ Improved yield ~5% through machine optimization; completed 3-site cross-training in 4.5 years (industry avg: 6 years).'}</div></div>`
+    };
+    case 'alarm': return {
+      title: zh ? '🏆 ACHIEVEMENTS // 成就展示' : '🏆 ACHIEVEMENTS',
+      body: `<div class="p-item" style="border-left-color:#f4d06f"><div class="p-icon-header"><div class="p-gradient" style="background:linear-gradient(135deg,rgba(234,179,8,0.15),rgba(17,24,39,0.95))"></div><div style="display:flex;align-items:center;gap:10px;z-index:1;position:relative"><i class="fas fa-handshake" style="color:#facc15;font-size:28px"></i><span class="p-version" style="background:rgba(234,179,8,0.2);border:1px solid rgba(234,179,8,0.5);color:#fde68a">${zh?'主動邀請合作':'INVITED COLLABORATION'}</span></div></div><div class="p-title">Datacurve × Project Eris</div><div class="p-tech" style="color:#facc15">${zh?'Datacurve (YC W24) · Shipd 平台':'Datacurve (YC W24) · Shipd Platform'}</div><div class="p-desc">${zh?'受 Datacurve 團隊主動邀請參與 Shipd 平台首個機器學習計畫 Project Eris。起因是團隊在 Kaggle 上注意到我的專案與參賽表現——為全球頂尖基礎模型提供具邏輯深度的「黃金標準」訓練數據，透過 AI Baseline 機制與頂尖工程師競爭解決高階 STEM 難題。':'Invited by Datacurve to collaborate on Project Eris for the Shipd platform — noticed through Kaggle projects, providing "gold standard" training data for top foundation models via AI Baseline mechanism, competing with top engineers on advanced STEM problems.'}<br><span class="tag" style="border-color:#f4d06f;color:#f4d06f">YC W24</span> <span class="tag" style="border-color:#f4d06f;color:#f4d06f">High-Fidelity AI Training</span> <span class="tag" style="border-color:#f4d06f;color:#f4d06f">STEM Reasoning</span></div></div>
+<div class="p-item" style="border-left-color:#f4d06f"><div class="p-icon-header"><div class="p-gradient" style="background:linear-gradient(135deg,rgba(234,179,8,0.15),rgba(17,24,39,0.95))"></div><div style="display:flex;align-items:center;gap:10px;z-index:1;position:relative"><i class="fas fa-trophy" style="color:#facc15;font-size:28px"></i><span style="font-size:13px;padding:2px 6px;background:rgba(249,115,22,0.2);border:1px solid rgba(249,115,22,0.5);color:#fdba74;border-radius:4px">🥉</span><span style="font-size:13px;padding:2px 6px;background:rgba(156,163,175,0.2);border:1px solid rgba(156,163,175,0.5);color:#d1d5db;border-radius:4px">🥈</span><span style="font-size:13px;padding:2px 6px;background:rgba(234,179,8,0.2);border:1px solid rgba(234,179,8,0.5);color:#fde68a;border-radius:4px;font-weight:bold">🥇 GOLD</span></div></div><div class="p-title">WorldQuant Challenge · Gold Level</div><div class="p-tech" style="color:#facc15">${zh?'WorldQuant BRAIN · Research Consultant 資格':'WorldQuant BRAIN · Research Consultant Qualified'}</div><div class="p-desc">${zh?'從銅牌、銀牌一路晉級至 Gold Level，並獲得 WorldQuant BRAIN Research Consultant 申請資格。策略設計結合台股市場多年實戰經驗，透過模擬法人與外資佈局思維執行策略轉換，經無數次反覆測試與優化而成。':'Progressed from Bronze → Silver → Gold Level, qualified as WorldQuant BRAIN Research Consultant. Strategy design combines years of Taiwan stock market experience, simulating institutional and foreign investor positioning.'}<br><span class="tag" style="border-color:#f4d06f;color:#f4d06f">Quant Alpha</span> <span class="tag" style="border-color:#f4d06f;color:#f4d06f">Sharpe 2.26</span> <span class="tag" style="border-color:#f4d06f;color:#f4d06f">Spectacular Alpha</span></div></div>
+<div class="p-item" style="border-left-color:#59d0ff"><div class="p-icon-header"><div class="p-gradient" style="background:linear-gradient(135deg,rgba(59,130,246,0.15),rgba(17,24,39,0.95))"></div><div style="display:flex;align-items:center;gap:10px;z-index:1;position:relative"><i class="fas fa-globe-asia" style="color:#60a5fa;font-size:28px"></i><span class="p-version" style="background:rgba(59,130,246,0.2);border:1px solid rgba(59,130,246,0.5);color:#93c5fd">${zh?'國際會議':'CONFERENCE'}</span></div></div><div class="p-title">PMI Asia Pacific Festival 2025</div><div class="p-tech" style="color:#60a5fa">${zh?'Project Management Institute · 參與者':'Project Management Institute · Attendee'}</div><div class="p-desc">${zh?'參與 PMI 亞太年度盛會，特別受益於 Kathleen Walch 關於「如何執行成功 AI 專案並避免失敗」的主題演講。關鍵啟發：AI 模型會漂移衰退，持續維運是必需而非選項；超個人化容易跨越「詭異谷」破壞信任；導入 AI 前先問「是為了解決問題，還是只為了做 AI？」':'Attended PMI Asia Pacific annual conference. Key takeaway from Kathleen Walch\'s talk on successful AI projects: AI models drift and degrade — continuous ops is mandatory; hyper-personalization risks the uncanny valley; always ask "are we solving a problem or just doing AI?"'}<br><span class="tag" style="border-color:#59d0ff;color:#59d0ff">AI Project Management</span> <span class="tag" style="border-color:#59d0ff;color:#59d0ff">PMI</span></div></div>
+<div class="p-item" style="border-left-color:#a58aff"><div class="p-icon-header"><div class="p-gradient" style="background:linear-gradient(135deg,rgba(168,85,247,0.15),rgba(17,24,39,0.95))"></div><div style="display:flex;align-items:center;gap:10px;z-index:1;position:relative"><i class="fas fa-lightbulb" style="color:#c084fc;font-size:28px"></i><span class="p-version" style="background:rgba(168,85,247,0.2);border:1px solid rgba(168,85,247,0.5);color:#d8b4fe">${zh?'技術洞察分享':'TECHNICAL INSIGHT'}</span></div></div><div class="p-title">${zh?'Harness Engineering 實踐':'Harness Engineering in Practice'}</div><div class="p-tech" style="color:#c084fc">${zh?'OpenClaw 實戰經驗 · 技術思想分享':'OpenClaw Hands-on · Technical Thought Leadership'}</div><div class="p-desc">${zh?'模型是引擎，穩定的 Agent 需要外部運行系統。三大實踐：(1) 從對話紀錄轉向持久化「狀態管理」(MEMORY.md)；(2) 建立「環境約束」閉環而非長 prompt——修改前確認、修改後自動測試；(3) 角色轉為「環境設計者」，專注拆解任務軌跡與定義工具邊界。':'Models are engines; stable Agents need external runtime systems. Three practices: (1) Shift from chat logs to persistent state management (MEMORY.md); (2) Build environment constraints loop instead of long prompts — confirm before edit, auto-test after; (3) Become an environment designer, focusing on task trajectory decomposition & tool boundary definition.'}<br><span class="tag" style="border-color:#a58aff;color:#a58aff">Agent Architecture</span> <span class="tag" style="border-color:#a58aff;color:#a58aff">LLM Ops</span></div></div>
+<div class="p-item" style="border-left-color:#ff8aa5"><div class="p-icon-header"><div class="p-gradient" style="background:linear-gradient(135deg,rgba(244,63,94,0.15),rgba(17,24,39,0.95))"></div><div style="display:flex;align-items:center;gap:10px;z-index:1;position:relative"><i class="fas fa-award" style="color:#fb7185;font-size:28px"></i><span class="p-version" style="background:rgba(244,63,94,0.2);border:1px solid rgba(244,63,94,0.5);color:#fda4af">${zh?'雙料績優':'DUAL AWARD'}</span></div></div><div class="p-title">${zh?'中華電信 雙料績優':'CHT Outstanding Performance'}</div><div class="p-tech" style="color:#fb7185">${zh?'中華電信 Chunghwa Telecom':'Chunghwa Telecom'}</div><div class="p-desc">${zh?'工作績優 & 行銷績優嘉獎。':'Work Excellence & Marketing Excellence awards.'}</div></div>`
+    };
+    case 'document': return {
+      title: zh ? '📜 CERTIFICATIONS // 認證檔案' : '📜 CERTIFICATIONS',
+      body: `<div class="cert-grid">
+<div class="cert-item" style="border-color:#f4d06f"><strong style="color:#f4d06f">PMP</strong><br><span style="font-size:13px;color:rgba(152,181,172,0.6)">Project Management Professional · PMI</span></div>
+<div class="cert-item" style="border-color:#f4d06f"><strong style="color:#f4d06f">CSPO</strong><br><span style="font-size:13px;color:rgba(152,181,172,0.6)">Certified Scrum Product Owner · Scrum Alliance</span></div>
+<div class="cert-item" style="border-color:#a58aff"><strong style="color:#a58aff">Microsoft AI-900</strong><br><span style="font-size:13px;color:rgba(152,181,172,0.6)">Azure AI Fundamentals</span></div>
+<div class="cert-item" style="border-color:#59d0ff"><strong style="color:#59d0ff">AI/ML Professional</strong><br><span style="font-size:13px;color:rgba(152,181,172,0.6)">ASU Graduate Certificate</span></div>
+<div class="cert-item" style="border-color:#7ce6c7"><strong style="color:#7ce6c7">Big Data Professional</strong><br><span style="font-size:13px;color:rgba(152,181,172,0.6)">ASU Graduate Certificate</span></div>
+<div class="cert-item" style="border-color:#5fe3ff"><strong style="color:#5fe3ff">ITS Python</strong><br><span style="font-size:13px;color:rgba(152,181,172,0.6)">Information Technology Specialist · Certiport</span></div>
+<div class="cert-item" style="border-color:#ff6978"><strong style="color:#ff6978">Gemini Certified Educator</strong><br><span style="font-size:13px;color:rgba(152,181,172,0.6)">Google for Education</span></div>
+<div class="cert-item" style="border-color:#bec6db"><strong style="color:#bec6db">MOS 2019</strong><br><span style="font-size:13px;color:rgba(152,181,172,0.6)">Excel · PowerPoint · Word Associate</span></div>
+<div class="cert-item" style="border-color:#ffc17a"><strong style="color:#ffc17a">ISO 50001:2018</strong><br><span style="font-size:13px;color:rgba(152,181,172,0.6)">${zh?'能源管理系統內部稽核員 · 中衛中心':'Energy Management System Internal Auditor'}</span></div>
+</div>`
+    };
+    case 'agent': return {
+      title: zh ? '📮 CONTACT // 聯絡方式' : '📮 CONTACT',
+      body: `${zh?'目前正在尋找':'Currently seeking'} <strong style="color:#59d0ff">AI ${zh?'產品經理':'Product Manager'}</strong> / <strong style="color:#a58aff">AI ${zh?'工程師':'Engineer'}</strong> / <strong style="color:#7ce6c7">${zh?'數據分析師':'Data Analyst'}</strong> ${zh?'等職位機會，歡迎隨時聯繫合作或交流。':'roles. Open to collaboration and networking.'}<br><br>
+<div class="p-item" style="border-left-color:#59d0ff">📧 <a href="mailto:gn0418228@gmail.com">gn0418228@gmail.com</a></div>
+<div class="p-item" style="border-left-color:#a58aff">💼 <a href="https://www.linkedin.com/in/shih-hua-chou/" target="_blank">LinkedIn — Shih-Hua Chou</a></div>
+<div class="p-item" style="border-left-color:#7ce6c7">🌐 <a href="https://waynechou-resume.vercel.app/" target="_blank">${zh?'正式版履歷網站':'Main Portfolio Site'}</a></div>`
+    };
+    case 'break_room': return {
+      title: zh ? '☕ BREAK ROOM // 休息室' : '☕ BREAK ROOM',
+      body: `${zh?'歡迎來到休息室！這裡是水豚 Wayne 的私人空間。':'Welcome to the break room! This is Capybara Wayne\'s private space.'}<br><br>
+<strong style="color:#ff7f50">${zh?'一些關於我的事':'Fun Facts'}</strong><hr class="divider">
+${zh?'▸ 我的吉祥物是水豚，因為牠們很會社交但又超級冷靜 🦫':'▸ My mascot is a capybara — social yet supremely chill 🦫'}<br>
+${zh?'▸ 我同時是 PMP 和寫 Python 的工程師，兩邊都能聊':'▸ I speak both PMP and Python fluently'}<br>
+${zh?'▸ 最愛的工作時間是深夜 — 想法總在那時冒出來':'▸ Best ideas come at 2 AM with coffee ☕'}<br>
+${zh?'▸ 咖啡是燃料，Bug 是日常，解完 Bug 的成就感無價':'▸ Coffee is fuel, bugs are routine, fixing them is priceless'}<br><br>
+<span style="color:rgba(152,181,172,0.5)">${zh?'— 感謝你花時間了解我 —':'— Thanks for getting to know me —'}</span>`
+    };
+    default: return { title: getRoomLabel(id), body: '' };
+  }
+}
+
+// ================================================================
+// Map Data (from ClawLibrary)
+// ================================================================
+// Room bounds and label positions — from ClawLibrary map.logic.json (1920×1080)
+const MAP_ROOMS = [
+  {id:"memory",    x:50,  y:95,  w:500, h:430, lx:366,  ly:148},
+  {id:"skills",    x:620, y:50,  w:330, h:250, lx:750,  ly:52},
+  {id:"mcp",       x:960, y:54,  w:210, h:168, lx:1074, ly:58},
+  {id:"alarm",     x:1280,y:50,  w:520, h:170, lx:1500, ly:62},
+  {id:"gateway",   x:700, y:320, w:730, h:300, lx:950,  ly:400},
+  {id:"document",  x:430, y:650, w:370, h:250, lx:666,  ly:664},
+  {id:"agent",     x:930, y:650, w:300, h:210, lx:1086, ly:691},
+  {id:"break_room",x:1320,y:740, w:480, h:220, lx:1500, ly:675},
+];
+
+// Walkable zones — from ClawLibrary map.logic.json (1920×1080)
+// Walkable zones — exact copy from ClawLibrary map.logic.json + bridge zones
+const WALK_ZONES = [
+  {points:[{x:90,y:165},{x:430,y:165},{x:530,y:240},{x:530,y:420},{x:470,y:500},{x:130,y:500},{x:60,y:420},{x:60,y:240}]},  // memory-room
+  {points:[{x:640,y:140},{x:1730,y:140},{x:1775,y:180},{x:1710,y:230},{x:1360,y:230},{x:1310,y:285},{x:960,y:285},{x:910,y:320},{x:720,y:320},{x:640,y:250}]},  // north-spine
+  {points:[{x:520,y:360},{x:1380,y:360},{x:1460,y:430},{x:1360,y:500},{x:720,y:500},{x:620,y:450},{x:520,y:450}]},  // center-hall
+  {points:[{x:1390,y:330},{x:1820,y:330},{x:1860,y:370},{x:1860,y:470},{x:1400,y:470},{x:1320,y:410}]},  // right-ops
+  {points:[{x:430,y:350},{x:620,y:350},{x:620,y:760},{x:430,y:760}]},  // left-drop
+  {points:[{x:760,y:420},{x:890,y:420},{x:890,y:760},{x:760,y:760}]},  // center-drop
+  {points:[{x:460,y:660},{x:1210,y:660},{x:1250,y:720},{x:1250,y:980},{x:520,y:980},{x:430,y:900},{x:430,y:720}]},  // lower-main
+  {points:[{x:1280,y:620},{x:1400,y:620},{x:1580,y:790},{x:1540,y:850},{x:1430,y:850},{x:1280,y:700}]},  // right-diagonal
+  {points:[{x:1380,y:760},{x:1800,y:760},{x:1820,y:790},{x:1820,y:1020},{x:1450,y:1020},{x:1360,y:930},{x:1360,y:790}]},  // break-room
+  // Bridge zones — ClawLibrary uses bitmap mask for these transitions
+  {points:[{x:700,y:300},{x:920,y:300},{x:920,y:370},{x:700,y:370}]},  // north↔center left bridge
+  {points:[{x:1300,y:260},{x:1420,y:260},{x:1420,y:370},{x:1300,y:370}]},  // north↔right bridge
+  {points:[{x:760,y:490},{x:1250,y:490},{x:1250,y:670},{x:760,y:670}]},  // center↔lower bridge (gateway/mcp area)
+  {points:[{x:1200,y:650},{x:1300,y:650},{x:1300,y:770},{x:1200,y:770}]},  // lower↔right-diagonal bridge
+];
+
+// Walk nodes (8 rooms, used for click-to-room target snapping)
+const WALK_NODES = [
+  {id:"DO1",x:620,y:860},   // document (certs)
+  {id:"ME1",x:300,y:320},   // memory (profile)
+  {id:"MC1",x:1040,y:260},  // mcp (projects) — north corridor below room
+  {id:"SK1",x:756,y:242},   // skills
+  {id:"GW1",x:950,y:570},   // gateway (education+experience) — center walkable band
+  {id:"AG1",x:1080,y:820},  // agent (contact)
+  {id:"BR1",x:1560,y:875},  // break room
+  {id:"AL1",x:1500,y:155},  // alarm (achievements)
+];
+
+// ---------- A* Grid Pathfinding (matching ClawLibrary's computeMaskRoute) ----------
+
+const GRID_STEP = 12; // same as ClawLibrary walkableGridStep
+const GRID_COLS = Math.ceil(1920 / GRID_STEP);
+const GRID_ROWS = Math.ceil(1080 / GRID_STEP);
+let walkableGrid = null; // Uint8Array, built once
+
+// Build walkable grid from bitmap mask or polygon fallback
+function buildWalkableGrid() {
+  walkableGrid = new Uint8Array(GRID_COLS * GRID_ROWS);
+  for (let row = 0; row < GRID_ROWS; row++) {
+    for (let col = 0; col < GRID_COLS; col++) {
+      const px = Math.min(1919, col * GRID_STEP + GRID_STEP / 2);
+      const py = Math.min(1079, row * GRID_STEP + GRID_STEP / 2);
+      if (isWalkable(px, py)) {
+        walkableGrid[row * GRID_COLS + col] = 1;
+      }
+    }
+  }
+  // Flood-fill reachable grid from spawn point (ClawLibrary: reachableWalkableGrid)
+  const spawnCell = sceneToGrid(1560, 875);
+  const reachable = new Uint8Array(GRID_COLS * GRID_ROWS);
+  const startIdx = spawnCell.row * GRID_COLS + spawnCell.col;
+  if (walkableGrid[startIdx] === 1) {
+    const queue = [startIdx];
+    reachable[startIdx] = 1;
+    const dirs = [1, -1, GRID_COLS, -GRID_COLS];
+    while (queue.length > 0) {
+      const idx = queue.shift();
+      const c = idx % GRID_COLS, r = (idx - c) / GRID_COLS;
+      for (const d of dirs) {
+        const ni = idx + d;
+        if (ni < 0 || ni >= GRID_COLS * GRID_ROWS) continue;
+        const nc = ni % GRID_COLS, nr = (ni - nc) / GRID_COLS;
+        // Prevent wrapping
+        if (Math.abs(nc - c) > 1 || Math.abs(nr - r) > 1) continue;
+        if (reachable[ni] || walkableGrid[ni] !== 1) continue;
+        reachable[ni] = 1;
+        queue.push(ni);
+      }
+    }
+  }
+  walkableGrid = reachable;
+  console.log('[Walk] Reachable cells:', reachable.reduce((s,v)=>s+v, 0), '/', GRID_COLS*GRID_ROWS);
+}
+
+// Initialize mask pixel data from loaded texture
+function initWalkableMask(scene) {
+  const tex = scene.textures.get('walkable-mask');
+  if (!tex || tex.key === '__MISSING') return false;
+  const source = tex.getSourceImage();
+  const canvas = document.createElement('canvas');
+  canvas.width = source.width;
+  canvas.height = source.height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(source, 0, 0);
+  maskPixelData = ctx.getImageData(0, 0, source.width, source.height).data;
+  maskWidth = source.width;
+  maskHeight = source.height;
+  return true;
+}
+
+function isGridWalkable(col, row) {
+  if (!walkableGrid || col < 0 || row < 0 || col >= GRID_COLS || row >= GRID_ROWS) return false;
+  return walkableGrid[row * GRID_COLS + col] === 1;
+}
+
+function sceneToGrid(px, py) {
+  return {
+    col: Math.max(0, Math.min(GRID_COLS - 1, Math.floor(px / GRID_STEP))),
+    row: Math.max(0, Math.min(GRID_ROWS - 1, Math.floor(py / GRID_STEP)))
+  };
+}
+
+function gridToScene(col, row) {
+  return {
+    x: Math.min(1919, col * GRID_STEP + GRID_STEP / 2),
+    y: Math.min(1079, row * GRID_STEP + GRID_STEP / 2)
+  };
+}
+
+// Find nearest walkable grid cell within radius
+function findNearestWalkableCell(px, py, maxRadius) {
+  const origin = sceneToGrid(px, py);
+  const r = Math.max(1, Math.ceil((maxRadius || 80) / GRID_STEP));
+  let best = null, bestDist = Infinity;
+  for (let dy = -r; dy <= r; dy++) {
+    for (let dx = -r; dx <= r; dx++) {
+      const col = origin.col + dx, row = origin.row + dy;
+      if (!isGridWalkable(col, row)) continue;
+      const d = dx * dx + dy * dy;
+      if (d < bestDist) { bestDist = d; best = { col, row }; }
+    }
+  }
+  return best;
+}
+
+// Check if a straight line between two points stays walkable (for path simplification)
+function segmentWalkable(ax, ay, bx, by) {
+  const samples = Math.max(8, Math.ceil(Math.hypot(bx - ax, by - ay) / GRID_STEP));
+  for (let i = 0; i <= samples; i++) {
+    const t = i / samples;
+    if (!isWalkable(ax + (bx - ax) * t, ay + (by - ay) * t)) return false;
+  }
+  return true;
+}
+
+// Simplify route: remove collinear waypoints
+function simplifyRoute(points) {
+  if (points.length <= 2) return points;
+  const result = [points[0]];
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = result[result.length - 1], cur = points[i], next = points[i + 1];
+    const dx1 = Math.sign(cur.x - prev.x), dy1 = Math.sign(cur.y - prev.y);
+    const dx2 = Math.sign(next.x - cur.x), dy2 = Math.sign(next.y - cur.y);
+    if (dx1 !== dx2 || dy1 !== dy2) result.push(cur);
+  }
+  result.push(points[points.length - 1]);
+  return result;
+}
+
+// Simplify route by line-of-sight: skip waypoints if you can walk straight
+function simplifyBySight(points) {
+  if (points.length <= 2) return points;
+  const result = [points[0]];
+  let anchor = 0;
+  while (anchor < points.length - 1) {
+    let far = points.length - 1;
+    while (far > anchor + 1) {
+      if (segmentWalkable(points[anchor].x, points[anchor].y, points[far].x, points[far].y)) break;
+      far--;
+    }
+    result.push(points[far]);
+    anchor = far;
+  }
+  return result;
+}
+
+// A* pathfinding on walkable grid (ClawLibrary: computeMaskRoute)
+function computeGridRoute(fromX, fromY, toX, toY) {
+  if (!walkableGrid) buildWalkableGrid();
+
+  const startCell = findNearestWalkableCell(fromX, fromY, 120) || sceneToGrid(fromX, fromY);
+  const endCell = findNearestWalkableCell(toX, toY, 120) || sceneToGrid(toX, toY);
+  const startKey = startCell.col + ',' + startCell.row;
+  const endKey = endCell.col + ',' + endCell.row;
+  if (startKey === endKey) return [{ x: toX, y: toY }];
+
+  const cameFrom = new Map();
+  const gScore = new Map([[startKey, 0]]);
+  const fScore = new Map([[startKey, Math.hypot(endCell.col - startCell.col, endCell.row - startCell.row)]]);
+  const open = [startKey];
+
+  const neighbors = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+
+  const parseKey = (k) => { const p = k.split(','); return { col: +p[0], row: +p[1] }; };
+
+  let found = false;
+  let iterations = 0;
+  const MAX_ITER = 30000; // safety limit (mask has narrower corridors = longer searches)
+  while (open.length > 0 && iterations < MAX_ITER) {
+    iterations++;
+    // Find lowest fScore
+    let bestIdx = 0, bestF = fScore.get(open[0]) ?? Infinity;
+    for (let i = 1; i < open.length; i++) {
+      const f = fScore.get(open[i]) ?? Infinity;
+      if (f < bestF) { bestF = f; bestIdx = i; }
+    }
+    const curKey = open[bestIdx];
+    open.splice(bestIdx, 1);
+
+    if (curKey === endKey) { found = true; break; }
+
+    const cur = parseKey(curKey);
+    for (const [dx, dy] of neighbors) {
+      const nc = cur.col + dx, nr = cur.row + dy;
+      if (!isGridWalkable(nc, nr)) continue;
+      // Diagonal: check both cardinal neighbors to prevent corner-cutting
+      if (dx !== 0 && dy !== 0) {
+        if (!isGridWalkable(cur.col + dx, cur.row) || !isGridWalkable(cur.col, cur.row + dy)) continue;
+      }
+      const nKey = nc + ',' + nr;
+      const stepCost = (dx !== 0 && dy !== 0) ? 1.414 : 1;
+      const tentG = (gScore.get(curKey) ?? Infinity) + stepCost;
+      if (tentG >= (gScore.get(nKey) ?? Infinity)) continue;
+      cameFrom.set(nKey, curKey);
+      gScore.set(nKey, tentG);
+      fScore.set(nKey, tentG + Math.hypot(endCell.col - nc, endCell.row - nr));
+      if (!open.includes(nKey)) open.push(nKey);
+    }
+  }
+
+  if (!found) return [{ x: toX, y: toY }]; // fallback: direct
+
+  // Reconstruct path
+  const rawPath = [{ x: toX, y: toY }];
+  let cursor = endKey;
+  while (cursor) {
+    const { col, row } = parseKey(cursor);
+    rawPath.push(gridToScene(col, row));
+    cursor = cameFrom.get(cursor);
+  }
+  rawPath.push({ x: fromX, y: fromY });
+  rawPath.reverse();
+
+  // Simplify: first remove collinear, then line-of-sight
+  return simplifyBySight(simplifyRoute(rawPath));
+}
+
+// Main route builder
+function buildRoute(fromX, fromY, toX, toY) {
+  return computeGridRoute(fromX, fromY, toX, toY);
+}
+
+// Point in polygon test (kept as fallback)
+function pointInPoly(px,py,pts) {
+  let inside=false;
+  for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+    const xi=pts[i].x,yi=pts[i].y,xj=pts[j].x,yj=pts[j].y;
+    if((yi>py)!==(yj>py)&&px<(xj-xi)*(py-yi)/(yj-yi)+xi) inside=!inside;
+  }
+  return inside;
+}
+
+// Bitmap mask pixel data (filled in create() from walkable-mask.png)
+let maskPixelData = null;
+let maskWidth = 0;
+let maskHeight = 0;
+
+// Check walkability from bitmap mask (ClawLibrary: isWalkableByMask)
+// Red pixel = walkable: r>180, g<120, b<120, a>0
+function isWalkableByMask(px, py) {
+  if (!maskPixelData) return false;
+  const mx = Math.round(px * maskWidth / 1920);
+  const my = Math.round(py * maskHeight / 1080);
+  if (mx < 0 || my < 0 || mx >= maskWidth || my >= maskHeight) return false;
+  const idx = (my * maskWidth + mx) * 4;
+  const r = maskPixelData[idx], g = maskPixelData[idx+1], b = maskPixelData[idx+2], a = maskPixelData[idx+3];
+  return a > 0 && r > 180 && g < 120 && b < 120;
+}
+
+function isWalkable(px,py) {
+  if (maskPixelData) return isWalkableByMask(px, py);
+  // Fallback to polygon zones if mask not loaded
+  for(const z of WALK_ZONES) if(pointInPoly(px,py,z.points)) return true;
+  return false;
+}
+
+// ================================================================
+// Phaser Scene
+// ================================================================
+let phaserGame = null;
+let capybara = null;
+let movePath = null;
+let moveIdx = 0;
+let moveTarget = null;
+let targetRoomId = null;
+let currentRoomId = null;
+let panelOpen = false;
+
+const CHAR_SPEED = 100;
+
+class PortfolioScene extends Phaser.Scene {
+  constructor() { super('Portfolio'); }
+
+  preload() {
+    this.load.image('floor', 'assets/scene-floor.png');
+    this.load.image('objects', 'assets/scene-objects.png');
+    this.load.image('walkable-mask', 'assets/walkable-mask.png');
+
+    this.load.spritesheet('capy-walk', 'assets/actors/walk-spritesheet.png', {frameWidth:128,frameHeight:128,endFrame:42});
+    this.load.spritesheet('capy-stand-front', 'assets/actors/stand_front-spritesheet.png', {frameWidth:128,frameHeight:128,endFrame:36});
+    this.load.spritesheet('capy-stand-back', 'assets/actors/stand_back-spritesheet.png', {frameWidth:128,frameHeight:128,endFrame:36});
+    this.load.spritesheet('capy-work', 'assets/actors/work-spritesheet.png', {frameWidth:128,frameHeight:128,endFrame:30});
+    this.load.spritesheet('capy-read', 'assets/actors/read-spritesheet.png', {frameWidth:128,frameHeight:128,endFrame:34});
+    this.load.spritesheet('capy-idea', 'assets/actors/idea-spritesheet.png', {frameWidth:128,frameHeight:128,endFrame:34});
+    this.load.spritesheet('capy-coffee', 'assets/actors/coffee-spritesheet.png', {frameWidth:128,frameHeight:128,endFrame:35});
+    this.load.spritesheet('capy-rest', 'assets/actors/rest-spritesheet.png', {frameWidth:128,frameHeight:128,endFrame:36});
+
+    this.load.on('progress', (v) => {
+      const fill = document.getElementById('loadingFill');
+      if(fill) fill.style.width = Math.floor(v*100)+'%';
+    });
+    this.load.on('complete', () => {
+      document.getElementById('loadingBar').style.display='none';
+      document.getElementById('startBtn').style.display='';
+      document.getElementById('startHints').style.display='';
+    });
+  }
+
+  create() {
+    // ClawLibrary layers: floor=1, back_walls=8, mid_props=20, actor=30, fg_occluder=50
+    const floor = this.add.image(960, 540, 'floor').setDepth(1);
+    const objects = this.add.image(960, 540, 'objects').setDepth(50); // fg_occluder: character walks behind
+
+    this.anims.create({key:'walk', frames:this.anims.generateFrameNumbers('capy-walk',{start:0,end:42}), frameRate:10, repeat:-1});
+    this.anims.create({key:'stand-front', frames:this.anims.generateFrameNumbers('capy-stand-front',{start:0,end:36}), frameRate:6, repeat:-1});
+    this.anims.create({key:'stand-back', frames:this.anims.generateFrameNumbers('capy-stand-back',{start:0,end:36}), frameRate:6, repeat:-1});
+    this.anims.create({key:'work', frames:this.anims.generateFrameNumbers('capy-work',{start:0,end:30}), frameRate:6, repeat:-1});
+    this.anims.create({key:'read', frames:this.anims.generateFrameNumbers('capy-read',{start:0,end:34}), frameRate:6, repeat:-1});
+    this.anims.create({key:'idea', frames:this.anims.generateFrameNumbers('capy-idea',{start:0,end:34}), frameRate:6, repeat:-1});
+    this.anims.create({key:'coffee', frames:this.anims.generateFrameNumbers('capy-coffee',{start:0,end:35}), frameRate:6, repeat:-1});
+    this.anims.create({key:'rest', frames:this.anims.generateFrameNumbers('capy-rest',{start:0,end:36}), frameRate:6, repeat:-1});
+
+    // ClawLibrary: 128→118 display × 1.2 scale = ~142px. Match with 128 × 1.1 ≈ 141px
+    capybara = this.add.sprite(1560, 875, 'capy-stand-front').setDepth(30).setScale(1.1);
+    capybara.play('stand-front');
+
+    // Initialize walkable mask from bitmap (ClawLibrary approach)
+    const maskOk = initWalkableMask(this);
+    console.log('[Walk] Mask loaded:', maskOk, 'size:', maskWidth, '×', maskHeight);
+
+    // Build walkable grid for A* pathfinding (now uses mask if available)
+    buildWalkableGrid();
+
+    // Camera — match ClawLibrary: no zoom, scroll(0,0)
+    const cam = this.cameras.main;
+    cam.setScroll(0, 0);
+
+    // Keyboard
+    this.cursors = this.input.keyboard.createCursorKeys();
+    this.wasd = this.input.keyboard.addKeys('W,A,S,D');
+    this.input.keyboard.on('keydown-ESC', () => { closePanel(); movePath=null; });
+    this.input.keyboard.on('keydown-E', () => { if(currentRoomId && !panelOpen) openPanel(currentRoomId); });
+
+    // Click to move
+    this.input.on('pointerdown', (pointer) => {
+      if(panelOpen) return;
+      const wx = pointer.worldX, wy = pointer.worldY;
+
+      let clickedRoom = null;
+      for(const r of MAP_ROOMS) {
+        if(wx>=r.x && wx<=r.x+r.w && wy>=r.y && wy<=r.y+r.h) { clickedRoom=r; break; }
+      }
+
+      // Use room walk node as destination (not label position)
+      const roomNodeMap = {memory:"ME1",skills:"SK1",mcp:"MC1",alarm:"AL1",
+        gateway:"GW1",document:"DO1",agent:"AG1",break_room:"BR1"};
+      let tx = wx, ty = wy;
+      if(clickedRoom) {
+        const nid = roomNodeMap[clickedRoom.id];
+        const node = WALK_NODES.find(n=>n.id===nid);
+        if(node) { tx=node.x; ty=node.y; } else { tx=clickedRoom.lx; ty=clickedRoom.ly+28; }
+      }
+
+      const route = buildRoute(capybara.x, capybara.y, tx, ty);
+      if(route && route.length>0) {
+        movePath = route;
+        moveIdx = 0;
+        targetRoomId = clickedRoom ? clickedRoom.id : null;
+      }
+    });
+
+    // Room labels
+    updateRoomLabels(this);
+    // Sidebar room list
+    buildSidebar();
+  }
+
+  update(time, delta) {
+    if(!capybara || panelOpen) return;
+
+    let vx=0, vy=0;
+    let followingPath = false; // true = trust the path, skip walkability
+    const hasKey = this.cursors.left.isDown||this.cursors.right.isDown||this.cursors.up.isDown||this.cursors.down.isDown||
+                   this.wasd.A.isDown||this.wasd.D.isDown||this.wasd.W.isDown||this.wasd.S.isDown;
+
+    if(hasKey) {
+      movePath = null;
+      if(this.cursors.left.isDown||this.wasd.A.isDown) vx=-1;
+      if(this.cursors.right.isDown||this.wasd.D.isDown) vx=1;
+      if(this.cursors.up.isDown||this.wasd.W.isDown) vy=-1;
+      if(this.cursors.down.isDown||this.wasd.S.isDown) vy=1;
+      if(vx||vy) { const len=Math.sqrt(vx*vx+vy*vy); vx/=len; vy/=len; }
+    } else if(movePath && moveIdx < movePath.length) {
+      followingPath = true;
+      const target = movePath[moveIdx];
+      const dx = target.x - capybara.x, dy = target.y - capybara.y;
+      const dist = Math.hypot(dx, dy);
+      const step = CHAR_SPEED * (delta / 1000);
+      if(dist <= step) {
+        // Snap to waypoint (ClawLibrary style)
+        capybara.x = target.x;
+        capybara.y = target.y;
+        moveIdx++;
+        if(moveIdx >= movePath.length) {
+          movePath = null;
+          if(targetRoomId) { openPanel(targetRoomId); targetRoomId = null; }
+        }
+      } else {
+        vx = dx / dist; vy = dy / dist;
+      }
+    }
+
+    const moving = vx!==0||vy!==0;
+
+    if(moving) {
+      const nx = capybara.x + vx*CHAR_SPEED*(delta/1000);
+      const ny = capybara.y + vy*CHAR_SPEED*(delta/1000);
+
+      if(followingPath) {
+        // Trust the computed path — move directly between nodes
+        capybara.x=nx; capybara.y=ny;
+      } else {
+        // Keyboard: check walkability with wall-sliding
+        if(isWalkable(nx,ny)) {
+          capybara.x=nx; capybara.y=ny;
+        } else if(isWalkable(nx,capybara.y)) {
+          capybara.x=nx;
+        } else if(isWalkable(capybara.x,ny)) {
+          capybara.y=ny;
+        }
+      }
+
+      if(capybara.anims.currentAnim?.key!=='walk') capybara.play('walk');
+      capybara.setFlipX(vx<0);
+    } else {
+      if(capybara.anims.currentAnim?.key==='walk') capybara.play('stand-front');
+    }
+
+    // Actor depth: ClawLibrary actor layer = 30, Y-sort within actor range
+    // Character is always behind objects (depth 50 / fg_occluder)
+    capybara.setDepth(30 + capybara.y * 0.001);
+
+    // Check room proximity
+    let inRoom = null;
+    for(const r of MAP_ROOMS) {
+  
+      if(capybara.x>=r.x && capybara.x<=r.x+r.w && capybara.y>=r.y && capybara.y<=r.y+r.h) {
+        inRoom=r; break;
+      }
+    }
+    if(inRoom && inRoom.id!==currentRoomId) {
+      currentRoomId=inRoom.id;
+      document.getElementById('hudLoc').textContent=getRoomLabel(inRoom.id);
+      updateSidebarActive(inRoom.id);
+      updateHudActivity();
+    } else if(!inRoom && currentRoomId) {
+      currentRoomId=null;
+      document.getElementById('hudLoc').textContent=lang==='zh'?'走廊':'Corridor';
+      updateSidebarActive(null);
+      updateHudActivity();
+    }
+
+    updateRoomLabelPositions(this);
+  }
+}
+
+// ================================================================
+// Sidebar Room List
+// ================================================================
+const SIDEBAR_ORDER = ['memory','skills','mcp','gateway','alarm','document','agent','break_room'];
+
+function buildSidebar() {
+  const container = document.getElementById('roomList');
+  container.innerHTML = '';
+  for(const id of SIDEBAR_ORDER) {
+    const r = ROOM_MAP[id]; if(!r) continue;
+    const btn = document.createElement('button');
+    btn.className = 'room-btn';
+    btn.id = 'sb-'+id;
+    btn.style.setProperty('--rc', r.color);
+    btn.innerHTML = `<div class="room-dot"></div>
+      <div class="room-btn-info">
+        <div class="room-btn-name">${getRoomName(id)}</div>
+        <div class="room-btn-sub">${r.sub}</div>
+      </div>`;
+    btn.onclick = () => openPanel(id);
+    container.appendChild(btn);
+  }
+}
+
+function updateSidebarActive(activeId) {
+  for(const id of SIDEBAR_ORDER) {
+    const el = document.getElementById('sb-'+id);
+    if(el) el.classList.toggle('active', id===activeId);
+  }
+}
+
+// ================================================================
+// HUD Activity (bottom-left)
+// ================================================================
+function updateHudActivity() {
+  const zh = lang==='zh';
+  const statsEl = document.getElementById('hudStats');
+  const lineEl = document.getElementById('hudActorLine');
+  const detailEl = document.getElementById('hudActorDetail');
+
+  statsEl.innerHTML = `
+    <div><div class="hud-stat-val">8</div><div class="hud-stat-lbl">${zh?'房間':'Rooms'}</div></div>
+    <div><div class="hud-stat-val">4</div><div class="hud-stat-lbl">${zh?'職位':'Positions'}</div></div>
+    <div><div class="hud-stat-val">9</div><div class="hud-stat-lbl">${zh?'證照':'Certs'}</div></div>
+  `;
+
+  if(currentRoomId) {
+    lineEl.textContent = `${zh?'探索中':'Exploring'}: ${getRoomName(currentRoomId)}`;
+    detailEl.textContent = zh?'按 E 鍵或點擊查看詳情':'Press E or click to view details';
+  } else {
+    lineEl.textContent = zh?'在走廊移動中...':'Moving through corridor...';
+    detailEl.textContent = zh?'走進房間探索':'Walk into a room to explore';
+  }
+}
+
+// Room labels as HTML overlay
+function updateRoomLabels(scene) {
+  const container = document.getElementById('roomLabels');
+  container.innerHTML = '';
+  for(const r of MAP_ROOMS) {
+
+    const el = document.createElement('div');
+    el.className = 'room-lbl';
+    el.id = 'rl-'+r.id;
+    el.textContent = getRoomLabel(r.id);
+    el.style.color = getRoomColor(r.id);
+    el.style.borderColor = getRoomColor(r.id) + '40';
+    el.onclick = () => openPanel(r.id);
+    container.appendChild(el);
+  }
+  updateRoomLabelPositions(scene);
+}
+
+function updateRoomLabelPositions(scene) {
+  const cam = scene.cameras.main;
+  // Account for Scale.FIT: canvas is scaled & centered within the window
+  const canvas = scene.game.canvas;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = rect.width / cam.width;
+  const scaleY = rect.height / cam.height;
+  for(const r of MAP_ROOMS) {
+
+    const el = document.getElementById('rl-'+r.id);
+    if(!el) continue;
+    // World → internal game coords → screen coords
+    const gx = (r.lx - cam.scrollX) * cam.zoom;
+    const gy = (r.ly - cam.scrollY) * cam.zoom;
+    const sx = rect.left + gx * scaleX;
+    const sy = rect.top + gy * scaleY;
+    el.style.left = sx + 'px';
+    el.style.top = sy + 'px';
+    el.style.display = (sx>-100&&sx<window.innerWidth+100&&sy>-100&&sy<window.innerHeight+100)?'':'none';
+  }
+}
+
+// ================================================================
+// Panel & UI
+// ================================================================
+function openPanel(id) {
+  const content = getPanelContent(id);
+  if(!content) return;
+  document.getElementById('panelTitle').innerHTML = `<span style="color:${getRoomColor(id)}">${content.title}</span>`;
+  document.getElementById('panelBody').innerHTML = content.body;
+  document.getElementById('panelOverlay').classList.add('active');
+  panelOpen = true;
+}
+
+function closePanel() {
+  document.getElementById('panelOverlay').classList.remove('active');
+  panelOpen = false;
+}
+
+function toggleLang() {
+  lang = lang==='zh'?'en':'zh';
+  try{localStorage.setItem('wl',lang);}catch(e){}
+  applyLang();
+  if(phaserGame) {
+    updateRoomLabels(phaserGame.scene.scenes[0]);
+    buildSidebar();
+    updateSidebarActive(currentRoomId);
+    updateHudActivity();
+  }
+}
+
+function applyLang() {
+  const zh = lang==='zh';
+  document.getElementById('startTitle').textContent = "WAYNE'S ARCHIVE";
+  document.getElementById('startSub').textContent = zh?'一隻水豚的 10 年職涯冒險':"A Capybara's 10-Year Career Adventure";
+  document.getElementById('startBtn').textContent = zh?'開始探索':'PRESS TO START';
+  document.getElementById('startHints').innerHTML = zh
+    ?'方向鍵 / WASD 移動 · 點擊地圖移動<br>走進房間探索 · E 鍵互動'
+    :'Arrow / WASD to move · Click to walk<br>Walk into rooms · E to interact';
+  document.getElementById('langBtn').textContent = zh?'EN':'中文';
+  document.getElementById('hudHint').innerHTML = zh?'方向鍵 · 點擊 · <span style="color:#ff7f50">E</span> 互動':'Arrows · Click · <span style="color:#ff7f50">E</span> interact';
+  document.getElementById('hudLoc').textContent = currentRoomId ? getRoomLabel(currentRoomId) : (zh?'走廊':'Corridor');
+}
+
+function toggleInfoPanel(show) {
+  const activity = document.getElementById('hudActivity');
+  if(activity) activity.style.display = show ? 'flex' : 'none';
+}
+
+function startGame() {
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('hud').style.display='block';
+  document.getElementById('sidebar').style.display='block';
+  document.getElementById('hudActivity').style.display='flex';
+  document.getElementById('panelSwitcher').style.display='flex';
+  document.getElementById('attribution').style.display='block';
+  updateHudActivity();
+}
+
+// ================================================================
+// Init Phaser
+// ================================================================
+applyLang();
+
+phaserGame = new Phaser.Game({
+  type: Phaser.AUTO,
+  parent: 'game-container',
+  transparent: true,
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+    width: 1920,
+    height: 1080
+  },
+  scene: [PortfolioScene],
+  physics: { default: 'arcade' },
+  input: { activePointers: 3 },
+  render: { pixelArt: true },
+});
+</script>
+</body>
+</html>
